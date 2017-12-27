@@ -49,7 +49,8 @@
 		players, lines, passes, waypoints,
 		selectedPlayer, 
 		pointer,
-		turnOnButtons, turnOffButtons, tunfOffPlayerButtons, turnOnPlayerButtons;
+		turnOnButtons, turnOffButtons, tunfOffPlayerButtons, turnOnPlayerButtons,
+		messageOne, messageTwo;
 
 		function load(){
 			//Display the file currently being loaded
@@ -69,6 +70,16 @@
 			lines = g.group();
 			passes = g.group();
 			waypoints = g.group();
+
+			messageOne = g.text("Make Route Mode:", "28x puzzler", "red");
+			messageTwo = g.text("Make Pass Mode:", "28x puzzler", "red");
+			messageThree = g.text("Make Pass Mode:", "28x puzzler", "red");
+			messageFour = g.text("Make Pass Mode:", "28x puzzler", "red");
+
+			g.stage.putBottom(messageOne,-75,-50);
+			g.stage.putBottom(messageTwo,75,-50);
+			g.stage.putBottom(messageThree,125,-50);
+			g.stage.putBottom(messageFour,175,-50);
 
 			//create ball
 			ballFilmstrip = g.filmstrip("soccer2.png",50,50);
@@ -144,32 +155,20 @@
 					//`bx`, `by` define the line's end x/y point.
 					route = g.line("Yellow", 2, player.centerX, player.centerY, pointer.x+50, pointer.y);
 					route.duration = 100;
-					waypoint = g.circle(10, "Yellow", "Yellow",1,pointer.x+50,pointer.y);
+					waypoint = g.circle(20, "Yellow", "Yellow",1,pointer.x+50,pointer.y);
 					waypoint.draggable = true,
 					waypoint.lastX = waypoint.x,
 					waypoint.moved = false,
-					waypoint.clicked = false;
+					waypoint.clicked = false,
+					waypoint.overed = false;
+					waypoint.passes = [];
 
 					waypoint.update = () => {
-						if (pointer.hitTestSprite(waypoint)) {
-							if(pointer.isDown){
-								waypoint.clicked = true;
-								turnOffButtons();
-								if(waypoint.lastX != waypoint.x){
-									waypoint.moved = true;
-								}
-								waypoint.lastX = waypoint.x;
-							}
-							if(pointer.isUp){
-								turnOnButtons();
-							}
+						if(makeRouteMode || makePassMode){
+							waypoint.draggable = false;
 						}
-						else {
-							if(waypoint.clicked && waypoint.moved == false){
-								makePass(waypoint);
-							}
-							waypoint.moved = false;
-							waypoint.clicked = false;
+						else{
+							waypoint.draggable = true;
 						}
 					}
 
@@ -234,7 +233,6 @@
 							player.routes[i].by = player.waypoints[i].centerY;
 							player.routes[i].vx = (player.routes[i].bx - player.routes[i].ax)/player.routes[i].duration;
 							player.routes[i].vy = (player.routes[i].by - player.routes[i].ay)/player.routes[i].duration;
-							player.waypoints[i].update();
 						}
 					}
 					if (player.hasBall) {
@@ -264,6 +262,9 @@
 						makePassMode = false;
 						if(pointer.touchingPlayer != undefined){
 							pass.to = pointer.touchingPlayer;
+						}
+						else if(pointer.touchingWaypoint != undefined){
+							pass.to = pointer.touchingWaypoint;
 						}
 						else{
 							console.log('removing pass');
@@ -357,11 +358,20 @@
 			}
 			
 			pointer = t.makePointer();
+			pointer.touchingWaypoint = false,
+			pointer.touchingPlayer = false,
+			pointer.touchingBall = false;
 			console.log("setup complete");
 			g.state = play;
 		}
 		function play() {
 			t.update();
+			if(selectedPlayer != undefined){
+				messageOne.content = `${selectedPlayer.draggable}`;
+			}
+			messageTwo.content = `${makeRouteMode}`;
+			messageThree.content = `${movePlayerMode}`;
+			messageFour.content = `${makePassMode}`;
 			if(makeRouteMode){
 				i = selectedPlayer.waypoints.length-1;
 			  	selectedPlayer.waypoints[i].x = pointer.x;
@@ -424,6 +434,37 @@
 				else{
 					pass.bx = pass.to.centerX;
 					pass.by = pass.to.centerY;
+				}
+			});
+			waypoints.children.forEach(waypoint => {
+				waypoint.update();
+				if (pointer.hitTestSprite(waypoint)) {
+					waypoint.overed = true;
+					pointer.touchingWaypoint = waypoint;
+					if(pointer.isDown){
+						waypoint.clicked = true;
+						turnOffButtons();
+						if(waypoint.lastX != waypoint.x){
+							waypoint.moved = true;
+						}
+						waypoint.lastX = waypoint.x;
+					}
+					if(pointer.isUp){
+						turnOnButtons();
+					}
+				}
+				else {
+					if(waypoint.clicked && waypoint.moved == false){
+						makePass(waypoint);
+					}
+					if(waypoint.overed){
+						console.log('overed');
+						console.log(pointer.touchingWaypoint);
+						pointer.touchingWaypoint = undefined;
+					}
+					waypoint.overed = false;
+					waypoint.moved = false;
+					waypoint.clicked = false;
 				}
 			});
 		}
