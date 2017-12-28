@@ -47,7 +47,8 @@
 		playersReset = 0,
 		ball = undefined,
 		players, lines, passes, waypoints,
-		selectedPlayer, 
+		selectedSprite, 
+		selectedPlayer = undefined,
 		pointer,
 		turnOnButtons, turnOffButtons, tunfOffPlayerButtons, turnOnPlayerButtons,
 		messageOne, messageTwo;
@@ -70,6 +71,14 @@
 			lines = g.group();
 			passes = g.group();
 			waypoints = g.group();
+			balls = g.group();
+
+			players.containerType = 'players';
+			buttons.containerType = 'buttons';
+			lines.containerType = 'lines';
+			passes.containerType = 'passes';
+			waypoints.containerType = 'waypoints';
+			balls.containerType = 'balls';
 
 			messageOne = g.text("Make Route Mode:", "28x puzzler", "red");
 			messageTwo = g.text("Make Pass Mode:", "28x puzzler", "red");
@@ -84,19 +93,21 @@
 			//create ball
 			ballFilmstrip = g.filmstrip("soccer2.png",50,50);
 			ball = g.sprite(ballFilmstrip);
+			ball.spriteType = 'ball';
 
 			//set ball variables
 			ball.draggable = true;
-			//current frame being displayed, get rounded in update
+			//current frame being displayed, get rounded in.playUpdate
 			ball.frame = 0.5;
 			ball.passes = [];
 			ball.moved = false;
 			ball.clicked = false;
 			g.stage.putCenter(ball, g.canvas.width/4);
 			ball.lastX = ball.x;
+			balls.addChild(ball);
 
 			//gets called every frame
-			ball.update = () => {
+			ball.playUpdate = () => {
 				ball.frame += .05;
 				Math.round(ball.frame);
 				ball.show(ball.frame);
@@ -143,7 +154,7 @@
 				player.lastX = x;
 				
 				//Investigate - not working until pointer scrolls over player
-				selectedPlayer = player;
+				selectedSprite = player;
 				
 				player.touchingBall = () => {
 					return g.hit(player, ball);
@@ -163,7 +174,7 @@
 					waypoint.overed = false;
 					waypoint.passes = [];
 
-					waypoint.update = () => {
+					waypoint.playUpdate = () => {
 					}
 
 					lines.addChild(route);
@@ -183,7 +194,7 @@
 					}, 200);
 				};
 
-				player.update = () => {
+				player.playUpdate = () => {
 					if(movePlayerMode){
 						if(player.routes.length > 0){
 							if(player.routes[player.activeRoute].bx - .5 < player.centerX  && player.routes[player.activeRoute].bx + .5 > player.centerX){
@@ -236,6 +247,7 @@
 				};
 
 				player.draggable = true;
+				selectedPlayer = player;
 				return player;
 			};
 
@@ -245,6 +257,18 @@
 				 pass = g.line("Green", 1, ball.centerX, ball.centerY, pointer.x, pointer.y);
 				 pass.from = fromObject;
 				 pass.to = undefined;
+				 pass.playUpdate = () => {
+					pass.ax = pass.from.centerX;
+					pass.ay = pass.from.centerY;
+					if(pass.to == undefined){
+						pass.bx = pointer.x;
+						pass.by = pointer.y;
+					}
+					else{
+						pass.bx = pass.to.centerX;
+						pass.by = pass.to.centerY;
+					}
+				 }
 				 fromObject.passes.push(pass);
 				 passes.addChild(pass);
 				 makePassMode = true;
@@ -254,11 +278,8 @@
 					g.pointer.tap = () =>{
 						turnOnButtons();
 						makePassMode = false;
-						if(pointer.touchingPlayer != undefined){
-							pass.to = pointer.touchingPlayer;
-						}
-						else if(pointer.touchingWaypoint != undefined){
-							pass.to = pointer.touchingWaypoint;
+						if(pointer.touchingSprite != undefined){
+							pass.to = pointer.touchingSprite;
 						}
 						else{
 							console.log('removing pass');
@@ -295,6 +316,9 @@
 				button.tap = function () {
 					return console.log("tapped");
 				};
+				button.playUpdate = function (){
+					return
+				};
 
 				button.x = x;
 				button.y = y;
@@ -319,6 +343,12 @@
 				selectedPlayer.makeRoute();	
 				return console.log("pressed make route");
 			};
+			makeRouteButton.playUpdate = function (){
+				if(selectedPlayer != undefined){
+					makeRouteButton.x = selectedPlayer.x + selectedPlayer.diameter;
+					makeRouteButton.y = selectedPlayer.y + 5;
+				}
+			}
 
 			makePassButton = makeButton(100, 10);
 			makePassButton.press = function () {
@@ -327,6 +357,12 @@
 				}
 				return console.log("pressed make route");
 			};
+			makePassButton.playUpdate = function (){
+				if(selectedPlayer != undefined){
+					makePassButton.x = selectedPlayer.x - selectedPlayer.diameter;
+					makePassButton.y = selectedPlayer.y + 5;
+				}
+			}
 
 			turnOffButtons = () => {
 				buttons.children.forEach(button =>{
@@ -352,7 +388,6 @@
 			}
 			
 			pointer = t.makePointer();
-			pointer.touchingWaypoint = false,
 			pointer.touchingPlayer = false,
 			pointer.touchingBall = false;
 			console.log("setup complete");
@@ -360,8 +395,8 @@
 		}
 		function play() {
 			t.update();
-			if(selectedPlayer != undefined){
-				messageOne.content = `${selectedPlayer.draggable}`;
+			if(selectedSprite != undefined){
+				messageOne.content = `${selectedSprite.draggable}`;
 			}
 			messageTwo.content = `${makeRouteMode}`;
 			messageThree.content = `${movePlayerMode}`;
@@ -371,96 +406,70 @@
 			  	selectedPlayer.waypoints[i].x = pointer.x;
 			  	selectedPlayer.waypoints[i].y = pointer.y; 
 			}
-			ball.update();
-			players.children.forEach(player => {
-
-			//Move the player with the `move` method. The `move` method updates
-			//the sprite's position by its `vx` and `vy` velocity values. (All Hexi
-			//sprites have `vx` and `vy` properties, which are initialized to
-			//zero). You can move more than one sprite at a time by supplying
-			//`move` with a list of sprites, separated by commas.
-			// g.move(player);
-				player.update();
-				if(movePlayerMode){
-					g.move(player);
-				}
-				else{
-					if (pointer.hitTestSprite(player)){
-						pointer.cursor = "pointer";
-						selectedPlayer = player;
-						makeRouteButton.x = player.x + player.diameter;
-						makeRouteButton.y = player.y + 5;
-						makePassButton.x = player.x - player.diameter;
-						makePassButton.y = player.y + 5;
-
-						pointer.touchingPlayer = player;
-						if(pointer.isDown){
-							player.clicked = true;
-							if(player.lastX != player.x){
-								player.moved = true;
-								turnOffPlayerButtons();
+			spriteType = undefined, isPlayer = undefined;
+			g.stage.children.forEach(someSprite =>{
+				if(someSprite.constructor === PIXI.Container){
+					spriteType = someSprite.containerType;
+					isPlayer = someSprite.containerType == 'players';
+					someSprite.children.forEach(nestedSomeSprite =>{
+						if(movePlayerMode){
+							//g.stage.draggable = false;
+							if(isPlayer){
+								nestedSomeSprite.playUpdate();
+								g.move(nestedSomeSprite);
+								console.log(nestedSomeSprite.vx);
 							}
-							player.lastX = player.x;
-							turnOffButtons();
+						}	
+						else{
+							if(['passes', 'balls', 'buttons'].includes(spriteType)){
+								nestedSomeSprite.playUpdate();
+							}
+							else if(['players', 'waypoints'].includes(spriteType)){
+								nestedSomeSprite.playUpdate();
+								if (pointer.hitTestSprite(nestedSomeSprite)){
+									pointer.cursor = "pointer";
+									nestedSomeSprite.overed = true;
+									selectedSprite = nestedSomeSprite;
+									pointer.touchingSprite = nestedSomeSprite;
+									if(isPlayer){
+										selectedPlayer = nestedSomeSprite;
+										pointer.touchingPlayer = nestedSomeSprite;
+									}
+									if(pointer.isDown){
+										nestedSomeSprite.clicked = true;
+										if(nestedSomeSprite.lastX != nestedSomeSprite.x){
+											nestedSomeSprite.moved = true;
+											if(isPlayer){turnOffPlayerButtons()};
+										}
+										nestedSomeSprite.lastX = nestedSomeSprite.x;
+										turnOffButtons();
+									}
+									if(pointer.isUp){
+										turnOnButtons();
+										if(isPlayer){turnOnPlayerButtons()};
+									}
+								}
+								else{
+									if(isPlayer && nestedSomeSprite.clicked && nestedSomeSprite.moved==false){
+										turnOnPlayerButtons();
+									}
+									if(spriteType == 'waypoints' && nestedSomeSprite.clicked && nestedSomeSprite.moved == false){
+										makePass(nestedSomeSprite);
+									}
+									if(nestedSomeSprite.overed){
+										console.log('overed');
+										nestedSomeSprite.overed = false;
+
+										nestedSomeSprite.moved = false;
+										nestedSomeSprite.clicked = false;
+										if(isPlayer){pointer.touchingPlayer = undefined};
+										pointer.touchingSprite = undefined;
+										pointer.cursor = "auto";
+									}
+								}
+							}
 						}
-						if(pointer.isUp){
-							turnOnButtons();
-							turnOnPlayerButtons();
-						}
-					}
-					else{
-						if(player.clicked && player.moved==false){
-							turnOnPlayerButtons();
-						}
-				 		player.moved = false;
-						player.clicked = false;
-						pointer.touchingPlayer = undefined;
-						 
-						pointer.cursor = "auto";
-					}
-				}
-			});
-			passes.children.forEach(pass => {
-				pass.ax = pass.from.centerX;
-				pass.ay = pass.from.centerY;
-				if(pass.to == undefined){
-					pass.bx = pointer.x;
-					pass.by = pointer.y;
-				}
-				else{
-					pass.bx = pass.to.centerX;
-					pass.by = pass.to.centerY;
-				}
-			});
-			waypoints.children.forEach(waypoint => {
-				waypoint.update();
-				if (pointer.hitTestSprite(waypoint)) {
-					waypoint.overed = true;
-					pointer.touchingWaypoint = waypoint;
-					if(pointer.isDown){
-						waypoint.clicked = true;
-						turnOffButtons();
-						if(waypoint.lastX != waypoint.x){
-							waypoint.moved = true;
-						}
-						waypoint.lastX = waypoint.x;
-					}
-					if(pointer.isUp){
-						turnOnButtons();
-					}
-				}
-				else {
-					if(waypoint.clicked && waypoint.moved == false){
-						makePass(waypoint);
-					}
-					if(waypoint.overed){
-						console.log('overed');
-						console.log(pointer.touchingWaypoint);
-						pointer.touchingWaypoint = undefined;
-					}
-					waypoint.overed = false;
-					waypoint.moved = false;
-					waypoint.clicked = false;
+					});
 				}
 			});
 		}
